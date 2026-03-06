@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cornhole</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;900&display=swap');
+
+  :root {
+    --sky: #87CEEB;
+    --grass: #4a7c3f;
+    --grass-light: #5d9e50;
+    --wood: #c8924a;
+    --wood-dark: #a0703a;
+    --wood-light: #e0b060;
+    --hole: #1a0a00;
+    --red: #e63946;
+    --blue: #457b9d;
+    --cream: #fef3c7;
+    --score-bg: rgba(0,0,0,0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(180deg, #87CEEB 0%, #b0dff5 50%, #4a7c3f 50%, #3d6b34 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 3rem;
+    color: white;
+    text-shadow: 3px 4px 0 #5d4e00, 0 0 30px rgba(255,200,0,0.4);
+    margin-top: 16px;
+    letter-spacing: 2px;
+  }
+
+  #scoreboard {
+    display: flex;
+    gap: 40px;
+    margin: 10px 0;
+    background: rgba(0,0,0,0.45);
+    border-radius: 20px;
+    padding: 10px 30px;
+    border: 2px solid rgba(255,255,255,0.2);
+  }
+
+  .score-panel {
+    text-align: center;
+  }
+
+  .score-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .score-name {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3rem;
+  }
+
+  .score-value {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2.8rem;
+    line-height: 1;
+  }
+
+  .p1 .score-name, .p1 .score-value { color: #ff6b6b; }
+  .p2 .score-name, .p2 .score-value { color: #6bb5ff; }
+
+  #game-area {
+    position: relative;
+    width: 520px;
+    height: 420px;
+    cursor: crosshair;
+  }
+
+  /* Cornhole board */
+  #board {
+    position: absolute;
+    left: 50%;
+    top: 30px;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 140px;
+  }
+
+  .board-body {
+    position: absolute;
+    width: 200px;
+    height: 130px;
+    background: linear-gradient(135deg, var(--wood-light) 0%, var(--wood) 40%, var(--wood-dark) 100%);
+    border-radius: 10px 10px 4px 4px;
+    border: 3px solid var(--wood-dark);
+    top: 0;
+    box-shadow: 4px 6px 0 #5a3a10, 0 10px 20px rgba(0,0,0,0.4);
+  }
+
+  /* Wood grain lines */
+  .board-body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 7px 7px 2px 2px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 18px,
+      rgba(0,0,0,0.08) 18px,
+      rgba(0,0,0,0.08) 20px
+    );
+  }
+
+  .board-leg-left, .board-leg-right {
+    position: absolute;
+    width: 14px;
+    height: 30px;
+    background: linear-gradient(to right, var(--wood-dark), var(--wood));
+    border-radius: 0 0 4px 4px;
+    border: 2px solid var(--wood-dark);
+    bottom: 0;
+    box-shadow: 2px 3px 0 #5a3a10;
+  }
+  .board-leg-left { left: 30px; transform: rotate(-8deg); }
+  .board-leg-right { right: 30px; transform: rotate(8deg); }
+
+  #hole {
+    position: absolute;
+    width: 46px;
+    height: 46px;
+    background: radial-gradient(circle, #0a0500 60%, #2a1500 100%);
+    border-radius: 50%;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 3px solid #6b3a0a;
+    box-shadow: inset 0 4px 12px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.5);
+    z-index: 2;
+  }
+
+  /* Landing zone indicator (hidden, used for hit detection) */
+  #landing-zone {
+    position: absolute;
+    width: 200px;
+    height: 130px;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Throw zone */
+  #throw-zone {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  #throw-label {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1rem;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 6px;
+  }
+
+  /* Pitcher marker */
+  #pitcher {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 6px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+    border: 1px dashed rgba(255,255,255,0.5);
+  }
+
+  /* Canvas for trajectory + beanbag */
+  #game-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 520px;
+    height: 420px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Aim dot */
+  #aim-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.85);
+    border: 2px solid rgba(0,0,0,0.4);
+    transform: translate(-50%,-50%);
+    pointer-events: none;
+    z-index: 20;
+    display: none;
+    box-shadow: 0 0 8px rgba(255,255,255,0.8);
+  }
+
+  /* Power bar */
+  #power-container {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #power-label {
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+  }
+
+  #power-bar-outer {
+    width: 18px;
+    height: 160px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 9px;
+    border: 2px solid rgba(255,255,255,0.2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  #power-bar-inner {
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(to top, #22c55e, #eab308, #ef4444);
+    border-radius: 9px;
+    transition: height 0.05s;
+  }
+
+  /* Toast messages */
+  #toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    font-family: 'Fredoka One', cursive;
+    font-size: 3.5rem;
+    color: white;
+    text-shadow: 3px 4px 0 rgba(0,0,0,0.4);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 100;
+    transition: transform 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  #toast.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+
+  /* Turn indicator */
+  #turn-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: white;
+    background: rgba(0,0,0,0.4);
+    padding: 4px 16px;
+    border-radius: 20px;
+    text-align: center;
+  }
+
+  /* Winner overlay */
+  #winner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  #winner-overlay.show { display: flex; }
+
+  #winner-text {
+    font-family: 'Fredoka One', cursive;
+    font-size: 4rem;
+    color: gold;
+    text-shadow: 4px 5px 0 #8b5000;
+    text-align: center;
+  }
+
+  #restart-btn {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.6rem;
+    padding: 14px 44px;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #166534;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  #restart-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #166534; }
+  #restart-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #166534; }
+
+  /* Beanbag on board markers */
+  .board-bag {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 2px solid rgba(0,0,0,0.3);
+    z-index: 5;
+    box-shadow: 1px 2px 4px rgba(0,0,0,0.4);
+  }
+
+  /* Divider */
+  .score-divider {
+    width: 2px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    margin: 4px 0;
+  }
+
+  .turn-arrow {
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  #throws-left {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* Stars/confetti */
+  .confetti {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    z-index: 300;
+    border-radius: 2px;
+    animation: fall 2s ease-in forwards;
+  }
+  @keyframes fall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🌽 Cornhole</h1>
+
+<div id="scoreboard">
+  <div class="score-panel p1">
+    <div class="score-label">Player</div>
+    <div class="score-name">RED</div>
+    <div class="score-value" id="score1">0</div>
+  </div>
+  <div class="score-divider"></div>
+  <div class="score-panel p2">
+    <div class="score-label">Player</div>
+    <div class="score-name">BLUE</div>
+    <div class="score-value" id="score2">0</div>
+  </div>
+</div>
+
+<div id="game-area">
+  <!-- Board -->
+  <div id="board">
+    <div class="board-body">
+      <div id="hole"></div>
+    </div>
+    <div class="board-leg-left"></div>
+    <div class="board-leg-right"></div>
+  </div>
+  <div id="landing-zone"></div>
+
+  <!-- Power bar -->
+  <div id="power-container">
+    <div id="power-label">Power</div>
+    <div id="power-bar-outer"><div id="power-bar-inner"></div></div>
+  </div>
+
+  <!-- Pitcher line -->
+  <div id="pitcher"></div>
+
+  <!-- Canvas for beanbag animation -->
+  <canvas id="game-canvas" width="520" height="420"></canvas>
+
+  <!-- Aim dot -->
+  <div id="aim-dot"></div>
+
+  <div id="turn-indicator">
+    <span class="turn-arrow">🎯</span>
+    <span id="turn-text">Red's Turn — Click to aim & hold to power up!</span>
+    <div id="throws-left">4 throws remaining</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="winner-overlay">
+  <div id="winner-text"></div>
+  <button id="restart-btn" onclick="restartGame()">Play Again! 🌽</button>
+</div>
+
+<script>
+const THROWS_PER_ROUND = 4;
+const WIN_SCORE = 21;
+
+let scores = [0, 0];
+let currentPlayer = 0; // 0 = red, 1 = blue
+let throwsLeft = THROWS_PER_ROUND;
+let gamePhase = 'aim'; // aim | power | throwing
+let aimX = 0, aimY = 0;
+let powerInterval = null;
+let power = 0;
+let powerDir = 1;
+let animFrame = null;
+let boardBags = []; // {x, y, player} bags resting on board
+
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const aimDot = document.getElementById('aim-dot');
+const powerBar = document.getElementById('power-bar-inner');
+const turnText = document.getElementById('turn-text');
+const throwsLeftEl = document.getElementById('throws-left');
+const toast = document.getElementById('toast');
+
+const playerColors = ['#e63946', '#457b9d'];
+const playerNames = ['Red', 'Blue'];
+
+// Board rect in game-area coords
+function getBoardRect() {
+  const board = document.getElementById('board');
+  const area = document.getElementById('game-area');
+  const br = board.getBoundingClientRect();
+  const ar = area.getBoundingClientRect();
+  return {
+    x: br.left - ar.left,
+    y: br.top - ar.top,
+    w: br.width,
+    h: br.height - 10 // just the plank part
+  };
+}
+
+function getHoleCenter() {
+  const holeEl = document.getElementById('hole');
+  const area = document.getElementById('game-area');
+  const hr = holeEl.getBoundingClientRect();
+  const ar = area.getBoundingClientRect();
+  return {
+    x: hr.left - ar.left + hr.width / 2,
+    y: hr.top - ar.top + hr.height / 2,
+    r: hr.width / 2
+  };
+}
+
+// Pitcher throw origin
+function getPitcherOrigin() {
+  return { x: 260, y: 395 };
+}
+
+// Mouse tracking
+document.getElementById('game-area').addEventListener('mousemove', (e) => {
+  if (gamePhase !== 'aim') return;
+  const rect = document.getElementById('game-area').getBoundingClientRect();
+  aimX = e.clientX - rect.left;
+  aimY = e.clientY - rect.top;
+  aimDot.style.left = aimX + 'px';
+  aimDot.style.top = aimY + 'px';
+  aimDot.style.display = 'block';
+  aimDot.style.background = playerColors[currentPlayer];
+});
+
+document.getElementById('game-area').addEventListener('mouseleave', () => {
+  if (gamePhase === 'aim') aimDot.style.display = 'none';
+});
+
+document.getElementById('game-area').addEventListener('mousedown', (e) => {
+  if (gamePhase !== 'aim') return;
+  const rect = document.getElementById('game-area').getBoundingClientRect();
+  aimX = e.clientX - rect.left;
+  aimY = e.clientY - rect.top;
+  startPowerUp();
+});
+
+document.getElementById('game-area').addEventListener('mouseup', () => {
+  if (gamePhase !== 'power') return;
+  releasePower();
+});
+
+// Touch support
+document.getElementById('game-area').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gamePhase !== 'aim') return;
+  const rect = document.getElementById('game-area').getBoundingClientRect();
+  aimX = e.touches[0].clientX - rect.left;
+  aimY = e.touches[0].clientY - rect.top;
+  startPowerUp();
+}, { passive: false });
+
+document.getElementById('game-area').addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (gamePhase !== 'power') return;
+  releasePower();
+}, { passive: false });
+
+function startPowerUp() {
+  gamePhase = 'power';
+  power = 0;
+  powerDir = 1;
+  aimDot.style.display = 'none';
+  turnText.textContent = `Hold for power... release to throw!`;
+
+  powerInterval = setInterval(() => {
+    power += powerDir * 2.5;
+    if (power >= 100) { power = 100; powerDir = -1; }
+    if (power <= 0) { power = 0; powerDir = 1; }
+    powerBar.style.height = power + '%';
+  }, 30);
+}
+
+function releasePower() {
+  clearInterval(powerInterval);
+  gamePhase = 'throwing';
+  const finalPower = power;
+  power = 0;
+  powerBar.style.height = '0%';
+  throwBag(aimX, aimY, finalPower);
+}
+
+function throwBag(targetX, targetY, pwr) {
+  const origin = getPitcherOrigin();
+
+  // Calculate arc trajectory
+  let t = 0;
+  const duration = 55; // frames
+  const bagColor = playerColors[currentPlayer];
+
+  // Power determines how far the bag travels vertically (toward the board).
+  // The board sits around y=30–160, origin is y=395.
+  // At 50% power the bag reaches the bottom of the board; 100% = past the top.
+  // We use the mouse X for horizontal aim but clamp it near the board.
+  const board = getBoardRect();
+  const boardCenterX = board.x + board.w / 2;
+  const boardTopY = board.y;
+  const boardBottomY = board.y + board.h;
+
+  // Horizontal: blend between board center and mouse X — allows aiming across the board
+  const clampedAimX = Math.max(board.x - 20, Math.min(board.x + board.w + 20, targetX));
+  const finalX = boardCenterX + (clampedAimX - boardCenterX) * 0.9;
+
+  // Vertical: power maps 0–100% → boardBottom+40 to boardTop-20
+  // At 0% power the bag falls way short; at ~60%+ it reaches the board
+  const minY = boardTopY - 20;   // overshoots at full power
+  const maxY = origin.y - 60;    // way short at 0% power
+  const finalY = maxY - (pwr / 100) * (maxY - minY);
+
+  // Spread (accuracy wobble) is lower at medium power
+  const spread = 18 + (Math.abs(pwr - 65) / 65) * 22;
+  const rx = (Math.random() - 0.5) * spread;
+  const ry = (Math.random() - 0.5) * spread * 0.5;
+
+  const trueFinalX = finalX + rx;
+  const trueFinalY = finalY + ry;
+  const arcHeight = 80 + pwr * 0.8;
+
+  function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  function animate() {
+    t++;
+    const progress = Math.min(t / duration, 1);
+    const ep = easeInOut(progress);
+
+    const x = origin.x + (trueFinalX - origin.x) * ep;
+    const y = origin.y + (trueFinalY - origin.y) * ep - Math.sin(progress * Math.PI) * arcHeight;
+    const size = 16 + Math.sin(progress * Math.PI) * 6; // grows as it arcs
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw trajectory trail
+    for (let i = 0; i < t; i++) {
+      const tp = Math.min(i / duration, 1);
+      const ep2 = easeInOut(tp);
+      const tx = origin.x + (trueFinalX - origin.x) * ep2;
+      const ty = origin.y + (trueFinalY - origin.y) * ep2 - Math.sin(tp * Math.PI) * arcHeight;
+      const alpha = (i / t) * 0.25;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fill();
+    }
+
+    // Draw spinning beanbag
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(progress * Math.PI * 6);
+    roundRect(ctx, -size/2, -size/2, size, size, 4);
+    ctx.fillStyle = bagColor;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Stitch lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-size/4, -size/4); ctx.lineTo(size/4, size/4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(size/4, -size/4); ctx.lineTo(-size/4, size/4); ctx.stroke();
+    ctx.restore();
+
+    if (progress < 1) {
+      animFrame = requestAnimationFrame(animate);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      checkLanding(trueFinalX, trueFinalY);
+    }
+  }
+
+  animFrame = requestAnimationFrame(animate);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function checkLanding(x, y) {
+  const hole = getHoleCenter();
+  const board = getBoardRect();
+
+  const distToHole = Math.hypot(x - hole.x, y - hole.y);
+
+  let points = 0;
+  let result = '';
+
+  if (distToHole < hole.r + 4) {
+    // In the hole!
+    points = 3;
+    result = '🎉 Hole In! +3';
+    showToast('🎯 HOLE IN! +3', '#ffd700');
+    spawnConfetti();
+    // Don't draw bag (went through)
+  } else {
+    // Check if on the board
+    const onBoard = x >= board.x && x <= board.x + board.w && y >= board.y && y <= board.y + board.h;
+    if (onBoard) {
+      points = 1;
+      result = '👍 On Board! +1';
+      showToast('👍 ON BOARD! +1', '#ffffff');
+      // Draw bag resting on board
+      boardBags.push({ x, y, player: currentPlayer });
+      drawBoardBags();
+    } else {
+      points = 0;
+      result = '😬 Miss!';
+      showToast('😬 MISS!', '#ff6b6b');
+    }
+  }
+
+  scores[currentPlayer] += points;
+  document.getElementById('score1').textContent = scores[0];
+  document.getElementById('score2').textContent = scores[1];
+
+  throwsLeft--;
+
+  setTimeout(() => {
+    if (scores[currentPlayer] >= WIN_SCORE) {
+      showWinner(currentPlayer);
+      return;
+    }
+
+    if (throwsLeft <= 0) {
+      // Switch player
+      throwsLeft = THROWS_PER_ROUND;
+      currentPlayer = currentPlayer === 0 ? 1 : 0;
+      boardBags = []; // clear board bags on new turn (each round bags are cleared)
+      drawBoardBags();
+    }
+
+    gamePhase = 'aim';
+    updateTurnDisplay();
+  }, 1200);
+
+  updateTurnDisplay(result);
+}
+
+function drawBoardBags() {
+  // Remove existing bag markers
+  document.querySelectorAll('.board-bag').forEach(el => el.remove());
+  const area = document.getElementById('game-area');
+  boardBags.forEach(bag => {
+    const el = document.createElement('div');
+    el.className = 'board-bag';
+    el.style.left = (bag.x - 9) + 'px';
+    el.style.top = (bag.y - 9) + 'px';
+    el.style.background = playerColors[bag.player];
+    area.appendChild(el);
+  });
+}
+
+function updateTurnDisplay(resultText) {
+  const name = playerNames[currentPlayer];
+  const color = playerColors[currentPlayer];
+  if (resultText) {
+    turnText.textContent = resultText;
+  } else {
+    turnText.innerHTML = `<span style="color:${color}">●</span> ${name}'s Turn — Click & hold to power up!`;
+  }
+  throwsLeftEl.textContent = `${throwsLeft} throw${throwsLeft !== 1 ? 's' : ''} remaining`;
+}
+
+function showToast(msg, color) {
+  toast.textContent = msg;
+  toast.style.color = color;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1000);
+}
+
+function showWinner(player) {
+  const overlay = document.getElementById('winner-overlay');
+  document.getElementById('winner-text').innerHTML = `🏆 ${playerNames[player]} Wins!<br><span style="font-size:1.8rem;color:white">Final Score: ${scores[0]} – ${scores[1]}</span>`;
+  overlay.classList.add('show');
+  spawnConfetti(80);
+}
+
+function spawnConfetti(count = 40) {
+  const colors = ['#ff6b6b','#ffd700','#6bb5ff','#22c55e','#f97316','#a855f7'];
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti';
+      el.style.left = (Math.random() * 100) + 'vw';
+      el.style.top = '-20px';
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.width = (6 + Math.random() * 10) + 'px';
+      el.style.height = (6 + Math.random() * 10) + 'px';
+      el.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }, Math.random() * 800);
+  }
+}
+
+function restartGame() {
+  scores = [0, 0];
+  currentPlayer = 0;
+  throwsLeft = THROWS_PER_ROUND;
+  gamePhase = 'aim';
+  boardBags = [];
+  document.getElementById('score1').textContent = '0';
+  document.getElementById('score2').textContent = '0';
+  document.getElementById('winner-overlay').classList.remove('show');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBoardBags();
+  updateTurnDisplay();
+}
+
+// Init
+updateTurnDisplay();
+</script>
+</body>
+</html>
